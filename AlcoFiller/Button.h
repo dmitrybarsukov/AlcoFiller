@@ -12,37 +12,35 @@ namespace Periph
 		{
 			_pin = pin;
 			pinMode(pin, pullup ? INPUT_PULLUP : INPUT);
-			
+
 		}
 
 		boolean isDown()
 		{
-			return currState;
+			return _currState;
 		}
 
 		boolean isPushed()
 		{
-			return currState && !prevState;
+			return _currState && !_prevState;
 		}
 
 		boolean isReleased()
 		{
-			return !currState && prevState;
+			return !_currState && _prevState;
 		}
 
 		void process()
 		{
-			prevState = currState;
-			currState = !digitalRead(_pin);
+			_prevState = _currState;
+			_currState = !digitalRead(_pin);
 		}
 
 	private:
 		byte _pin;
-		int currState;
-		int prevState;
+		int _currState;
+		int _prevState;
 	};
-
 }
-
 
 #endif // BUTTON_H
