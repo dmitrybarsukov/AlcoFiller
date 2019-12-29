@@ -33,6 +33,25 @@ namespace Periph
 			return res;
 		}
 
+		boolean control(int& val, int min, int max, int step = 1)
+		{
+			if (isRotatedLeft())
+			{
+				val -= step;
+				if (val < min)
+					val = min;
+				return true;
+			}
+			if (isRotatedRight())
+			{
+				val += step;
+				if (val > max)
+					val = max;
+				return true;
+			}
+			return false;
+		}
+
 		void process()
 		{
 			byte state = (!digitalRead(_pinA)) | ((!digitalRead(_pinB)) << 1);
