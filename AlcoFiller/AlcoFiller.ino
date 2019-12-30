@@ -15,7 +15,7 @@
 #include "Colors.h"
 
 #define IR_DETECT_THRESHOLD_VALUE (300)
-#define PROP_MS_TO_ML 170L
+#define PROP_MS_TO_ML 140L
 
 #pragma region Peripherals
 
@@ -125,7 +125,7 @@ void rotateServoAndWait(int angle)
 {
 	int cur = servo.read();
 	servo.write(angle);
-	delay(abs(angle - cur) * 2.5);
+	delay(abs(angle - cur) * 2.8);
 }
 
 void changeModeTo(Mode::Mode* mode)
@@ -198,7 +198,7 @@ void tryFillShot(int index)
 			pixels.show();
 		}
 		pump.off();
-		delay(100);
+		delay(500);
 	}
 }
 
@@ -210,7 +210,10 @@ void setup() {
 	button.process();
 	loadConfig();
 	changeModeTo(Mode::Manual);
-	if (button.isDown() && encButton.isDown())
+	int cnt = 30;
+	while (--cnt > 0 && button.isDown())
+		button.process();
+	if (cnt == 0)
 		changeModeTo(Mode::Service);
 }
 
@@ -304,7 +307,7 @@ void onLoopAutoMode()
 	if (encButton.isPushed())
 		changeModeTo(Mode::Manual);
 
-	if (encoder.control(currentDrinkVolume, 0, 100, 2))
+	if (encoder.control(currentDrinkVolume, 0, 100, 5))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
 
 	for (int i = 0; i < 4; i++)
@@ -321,7 +324,7 @@ void onLoopAutoMode()
 
 	if (shots[idx].isPresent
 		&& shots[idx].volume == 0
-		&& millis() > shots[idx].addedAt + 500)
+		&& millis() > shots[idx].addedAt + 800)
 	{
 		tryFillShot(idx);
 	}
@@ -346,7 +349,7 @@ void onLoopManualMode()
 	if (encButton.isPushed())
 		changeModeTo(Mode::Auto);
 
-	if(encoder.control(currentDrinkVolume, 0, 100, 2))
+	if(encoder.control(currentDrinkVolume, 0, 100, 5))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
 
 	for (int i = 0; i < 4; i++)
