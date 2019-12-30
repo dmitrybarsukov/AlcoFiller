@@ -14,8 +14,7 @@
 #include "AnalogIn.h"
 #include "Colors.h"
 
-#define SERVO_FB_ALLOWED_DELTA 10
-#define IR_DETECT_THRESHOLD_VALUE (200)
+#define IR_DETECT_THRESHOLD_VALUE (300)
 #define PROP_MS_TO_ML 170L
 
 #pragma region Peripherals
@@ -105,6 +104,7 @@ namespace ShotState
 		boolean isAdded;
 		boolean isRemoved;
 		byte volume;
+		unsigned long addedAt;
 	} ShotState;
 }
 
@@ -155,9 +155,50 @@ void processShots()
 		shots[i].isPresent = newVal;
 		shots[i].isAdded = newVal && !oldVal;
 		shots[i].isRemoved = oldVal && !newVal;
-
+		if (shots[i].isAdded)
+			shots[i].addedAt = millis();
+		else if (shots[i].isRemoved)
+			shots[i].addedAt = 0x7FFFFFFF;
 		if (oldVal != newVal)
 			shots[i].volume = 0;
+	}
+}
+
+void tryFillShot(int index)
+{
+	ShotState::ShotState* sh = &shots[index];
+	caseOpenDetector.process();
+	if (sh->isPresent && sh->volume == 0 && caseOpenDetector.isDown())
+	{
+		sh->volume = 0;
+		rotateServoAndWait(servoPos[index]);
+
+		long startTime = millis();
+		long endTime = startTime + currentDrinkVolume * PROP_MS_TO_ML;
+		pump.on();
+		while (millis() <= endTime)
+		{
+			processShots();
+			button.process();
+			caseOpenDetector.process();
+			if (sh->isRemoved || button.isPushed() || !caseOpenDetector.isDown())
+				break;
+
+			unsigned long currTime = millis();
+			int vol = map(currTime, startTime, endTime, 0, 255);
+			sh->volume = min(vol, 255);
+
+			for (int j = 0; j < 4; j++)
+			{
+				if (shots[j].isPresent)
+					pixels.setPixelColor(j, Color::Interpolate(Color::GREEN, Color::RED, shots[j].volume));
+				else
+					pixels.setPixelColor(j, Color::BLUE);
+			}
+			pixels.show();
+		}
+		pump.off();
+		delay(100);
 	}
 }
 
@@ -169,7 +210,7 @@ void setup() {
 	button.process();
 	loadConfig();
 	changeModeTo(Mode::Manual);
-	if (button.isDown())
+	if (button.isDown() && encButton.isDown())
 		changeModeTo(Mode::Service);
 }
 
@@ -256,19 +297,38 @@ void onStartAutoMode()
 	display.showNumberDec(currentDrinkVolume, false, 3, 1);
 }
 
+byte autoCurrentShot = 0;
+
 void onLoopAutoMode()
 {
 	if (encButton.isPushed())
 		changeModeTo(Mode::Manual);
 
-	if (encoder.control(currentDrinkVolume, 0, 500, 5))
+	if (encoder.control(currentDrinkVolume, 0, 100, 2))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
+
+	for (int i = 0; i < 4; i++)
+	{
+		if (shots[i].isPresent)
+			pixels.setPixelColor(i, Color::Interpolate(Color::GREEN, Color::RED, shots[i].volume));
+		else
+			pixels.setPixelColor(i, Color::BLUE);
+	}
+	pixels.show();
+
+	autoCurrentShot = autoCurrentShot == 3 ? 0 : autoCurrentShot + 1;
+	int idx = autoCurrentShot;
+
+	if (shots[idx].isPresent
+		&& shots[idx].volume == 0
+		&& millis() > shots[idx].addedAt + 500)
+	{
+		tryFillShot(idx);
+	}
+	servo.write(0);
 }
 
-void onExitAutoMode()
-{
-
-}
+void onExitAutoMode() { }
 
 #pragma endregion
 #pragma region Manual mode
@@ -279,8 +339,6 @@ void onStartManualMode()
 	servo.write(0);
 	display.setSegments(display_P, 1, 0);
 	display.showNumberDec(currentDrinkVolume, false, 3, 1);
-	for (int i = 0; i < 4; i++)
-		shots[i].volume = 0;
 }
 
 void onLoopManualMode()
@@ -288,7 +346,7 @@ void onLoopManualMode()
 	if (encButton.isPushed())
 		changeModeTo(Mode::Auto);
 
-	if(encoder.control(currentDrinkVolume, 0, 500, 5))
+	if(encoder.control(currentDrinkVolume, 0, 100, 2))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
 
 	for (int i = 0; i < 4; i++)
@@ -305,45 +363,7 @@ void onLoopManualMode()
 		int vol = currentDrinkVolume;
 		for (int i = 0; i < 4; i++)
 		{
-			ShotState::ShotState* sh = &shots[i];
-			if (sh->isPresent && sh->volume == 0)
-			{
-				sh->volume = 0;
-				rotateServoAndWait(servoPos[i]);
-
-				long startTime = millis();
-				long endTime = startTime + vol * PROP_MS_TO_ML;
-				pump.on();
-				while (millis() <= endTime)
-				{
-					processShots();
-					button.process();
-					caseOpenDetector.process();
-					if (sh->isRemoved || button.isPushed())
-						break;
-
-					if (!caseOpenDetector.isDown())
-					{
-						i = 10;
-						break;
-					}
-
-					unsigned long currTime = millis();
-					int vol = map(currTime, startTime, endTime, 0, 255);
-					sh->volume = min(vol, 255);
-
-					for (int j = 0; j < 4; j++)
-					{
-						if (shots[j].isPresent)
-							pixels.setPixelColor(j, Color::Interpolate(Color::GREEN, Color::RED, shots[j].volume));
-						else
-							pixels.setPixelColor(j, Color::BLACK);
-					}						
-					pixels.show();
-				}
-				pump.off();
-				delay(100);
-			}
+			tryFillShot(i);
 		}
 		servo.write(0);
 	}
