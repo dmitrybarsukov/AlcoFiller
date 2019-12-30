@@ -141,10 +141,12 @@ void processShots()
 	int irVals[4] = {};
 
 	ledIR.off();
+	delayMicroseconds(100);
 	for (int i = 0; i < 4; i++)
 		irVals[i] = rcvIR[i].getValue();
 
 	ledIR.on();
+	delayMicroseconds(100);
 	for (int i = 0; i < 4; i++)
 		irVals[i] -= rcvIR[i].getValue();
 
