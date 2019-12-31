@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define HOLD_TIME 500
+#define HOLD_TIME 800
 
 namespace Periph
 {

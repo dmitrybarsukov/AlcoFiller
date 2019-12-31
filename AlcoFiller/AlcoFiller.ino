@@ -44,6 +44,8 @@ const byte display_Err[] = { 0x79, 0x50, 0x50, 0x00 };
 const byte display_POS[] = { 0x73, 0x3F, 0x6D };
 const byte display_A[] = { 0x77 };
 const byte display_P[] = { 0x73 };
+const byte display_H[] = { 0x76 };
+const byte display_empty[] = { 0x00, 0x00, 0x00, 0x00 };
 
 #pragma endregion
 #pragma region Function declarations
@@ -63,6 +65,10 @@ void onExitAutoMode();
 void onStartManualMode();
 void onLoopManualMode();
 void onExitManualMode();
+
+void onStartHandMode();
+void onLoopHandMode();
+void onExitHandMode();
 
 void loadConfig();
 void saveConfig();
@@ -85,12 +91,14 @@ namespace Mode
 		Mode Service = { onStartServiceMode, onLoopServiceMode, onExitServiceMode };
 		Mode Auto = { onStartAutoMode, onLoopAutoMode, onExitAutoMode };
 		Mode Manual = { onStartManualMode, onLoopManualMode, onExitManualMode };
+		Mode Hand = { onStartHandMode, onLoopHandMode, onExitHandMode };
 	}
 
 	Mode* Closed = &ModesPriv::Closed;
 	Mode* Service = &ModesPriv::Service;
 	Mode* Auto = &ModesPriv::Auto;
 	Mode* Manual = &ModesPriv::Manual;
+	Mode* Hand = &ModesPriv::Hand;
 }
 
 #pragma endregion
@@ -211,7 +219,7 @@ void setup() {
 	display.setBrightness(7, true);
 	button.process();
 	loadConfig();
-	changeModeTo(Mode::Manual);
+	changeModeTo(Mode::Hand);
 	int cnt = 30;
 	while (--cnt > 0 && button.isDown())
 		button.process();
@@ -306,8 +314,17 @@ byte autoCurrentShot = 0;
 
 void onLoopAutoMode()
 {
-	if (encButton.isPushed())
+	if (encButton.isReleased())
+	{
 		changeModeTo(Mode::Manual);
+		return;
+	}
+	
+	if (encButton.isHold())
+	{
+		changeModeTo(Mode::Hand);
+		return;
+	}
 
 	if (encoder.control(currentDrinkVolume, 0, 100, 5))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
@@ -348,8 +365,17 @@ void onStartManualMode()
 
 void onLoopManualMode()
 {
-	if (encButton.isPushed())
+	if (encButton.isReleased())
+	{
 		changeModeTo(Mode::Auto);
+		return;
+	}
+
+	if (encButton.isHold())
+	{
+		changeModeTo(Mode::Hand);
+		return;
+	}
 
 	if(encoder.control(currentDrinkVolume, 0, 100, 5))
 		display.showNumberDec(currentDrinkVolume, false, 3, 1);
@@ -363,7 +389,7 @@ void onLoopManualMode()
 	}
 	pixels.show();
 
-	if (button.isPushed())
+	if (button.isReleased())
 	{
 		int vol = currentDrinkVolume;
 		for (int i = 0; i < 4; i++)
@@ -375,6 +401,35 @@ void onLoopManualMode()
 }
 
 void onExitManualMode() { }
+
+#pragma endregion
+#pragma region Hand mode
+
+void onStartHandMode()
+{
+	pump.off();
+	servo.write(93);
+	display.setSegments(display_H, 1, 0);
+	display.setSegments(display_empty, 3, 1);
+	pixels.clear();
+	pixels.show();
+}
+
+void onLoopHandMode()
+{
+	if (encButton.isHold())
+		changeModeTo(Mode::Auto);
+
+	if (button.isDown())
+		pump.on();
+	else
+		pump.off();
+}
+
+void onExitHandMode() 
+{
+	servo.write(0);
+}
 
 #pragma endregion
 #pragma region Service Mode
